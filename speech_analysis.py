@@ -1,74 +1,67 @@
-"""
-Real-time Speech Analysis for Attractiveness
-Combines speech-to-text with attractiveness classification
-"""
-
+import os
 import speech_recognition as sr
 from attractiveness_classifier import AttractivenessClassifier, print_analysis
-import time
-import sys
+from datetime import datetime
 
+def save_to_text(analysis, folder="analyses"):
+    """Append analysis results to a single text file inside the 'analyses' folder"""
+    os.makedirs(folder, exist_ok=True)  # create folder if missing
+    filename = os.path.join(folder, "analysis_output.txt")
 
-def setup_recognizer():
-    """Initialize the speech recognizer"""
-    recognizer = sr.Recognizer()
-    return recognizer
+    with open(filename, "a") as f:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        f.write(f"\n=== New Analysis ({timestamp}) ===\n")
+        f.write(f"Total words analyzed: {analysis['summary']['total_analyzed']}\n")
+        f.write(f"Attractive words found: {analysis['summary']['attractive_count']}\n")
+        f.write(f"Non-attractive words found: {analysis['summary']['non_attractive_count']}\n")
+        f.write(f"Attractiveness score: {analysis['summary']['attractiveness_score']:.2f}\n\n")
 
+        if analysis["attractive_words"]:
+            f.write("Attractive Words:\n")
+            for w in analysis["attractive_words"]:
+                f.write(f"- {w['word']} ({w['probability']:.2f})\n")
 
-def record_and_transcribe(recognizer):
-    """Record audio and convert to text"""
-    try:
-        with sr.Microphone() as source:
-            print("\n🎤 Listening...")
-            recognizer.adjust_for_ambient_noise(source, duration=0.2)
-            audio = recognizer.listen(source)
+        if analysis["non_attractive_words"]:
+            f.write("\nNon-Attractive Words:\n")
+            for w in analysis["non_attractive_words"]:
+                f.write(f"- {w['word']} ({w['probability']:.2f})\n")
 
-        print("🧠 Transcribing...")
-        text = recognizer.recognize_google(audio)
-        print(f"📝 Transcribed Text: {text}")
-        return text
+        f.write("\n" + "=" * 50 + "\n")
 
-    except sr.RequestError as e:
-        print(f"⚠️  Error with speech recognition service: {e}")
-        return None
-    except sr.UnknownValueError:
-        print("🤔 Could not understand audio")
-        return None
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return None
+    print(f"💾 Saved analysis to {filename}")
 
 
 def main():
-    """Main function to run the speech analysis"""
-    try:
-        # Initialize speech recognition and classifier
-        recognizer = setup_recognizer()
-        classifier = AttractivenessClassifier()
+    recognizer = sr.Recognizer()
+    classifier = AttractivenessClassifier()
 
-        print("\n🗣️  Speech Attractiveness Analyzer")
-        print("Press Ctrl+C to exit")
-        print("-" * 60)
+    print("\n🗣️  Speech Attractiveness Analyzer")
+    print("Press Ctrl+C to exit")
+    print("------------------------------------------------------------")
 
-        while True:
-            # Record and transcribe speech
-            text = record_and_transcribe(recognizer)
+    while True:
+        try:
+            print("\n🎤 Listening...")
+            with sr.Microphone() as source:
+                audio = recognizer.listen(source)
 
-            if text:
-                # Analyze the transcribed text
-                analysis = classifier.analyze_text(text)
+            print("🧠 Transcribing...")
+            try:
+                text = recognizer.recognize_google(audio)
+                print(f"📝 Transcribed Text: {text}")
+            except sr.UnknownValueError:
+                print("🤔 Could not understand audio")
+                continue
 
-                # Print analysis summary
-                print_analysis(analysis)
+            analysis = classifier.analyze_text(text)
+            print_analysis(analysis)
 
-                # Automatically save JSON file
-                classifier.save_analysis(analysis)
+            # Automatically log results to analyses/analysis_output.txt
+            save_to_text(analysis, "analyses")
 
-            time.sleep(0.1)  # Small delay to prevent CPU overuse
-
-    except KeyboardInterrupt:
-        print("\n👋 Exiting Speech Analysis...")
-        sys.exit(0)
+        except KeyboardInterrupt:
+            print("\n👋 Exiting Speech Analysis...")
+            break
 
 
 if __name__ == "__main__":
