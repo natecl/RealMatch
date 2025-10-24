@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 and the other one
 give me like a list of harder
 lists inside a list stuff like that guy
@@ -23,3 +24,6 @@ hello my name is
 hello my name is Nathan and
 how long
 water
+=======
+
+>>>>>>> 67cdef006bf9670c1315a8ed9349c750c3e9aaab
