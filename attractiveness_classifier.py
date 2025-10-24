@@ -6,10 +6,9 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
-import json
 from datetime import datetime
 
-# Ensure required NLTK data is available
+# Make sure NLTK data is ready
 nltk.download("punkt")
 nltk.download("stopwords")
 nltk.download("averaged_perceptron_tagger")
@@ -20,18 +19,13 @@ class AttractivenessClassifier:
     def __init__(self):
         print("🔤 Loading word embeddings...")
         self.word_vectors = self._load_embeddings()
-
-        # Initialize and train the classifier
         self._initialize_classifier()
-
-        # Load stop words
         self.stop_words = set(stopwords.words("english"))
         print("✅ Classifier ready!")
 
     def _load_embeddings(self):
-        """Try to load local, fallback to online Gensim source, then fallback to smaller model"""
+        """Load local embeddings or fallback to Gensim API"""
         local_path = "/Users/n.chinlue/RealMatch/models/GoogleNews-vectors-negative300.bin.gz"
-
         try:
             if os.path.exists(local_path):
                 print(f"📁 Found local model: {local_path}")
@@ -46,7 +40,7 @@ class AttractivenessClassifier:
             return api.load("glove-wiki-gigaword-100")
 
     def _initialize_classifier(self):
-        """Initialize and train the RandomForest with predefined word categories"""
+        """Train RandomForest on predefined positive/negative word sets"""
         attractive_words = [
             "confident", "ambitious", "successful", "intelligent", "passionate",
             "creative", "determined", "motivated", "authentic", "accomplished",
@@ -54,7 +48,6 @@ class AttractivenessClassifier:
             "dedicated", "reliable", "trustworthy", "ethical", "committed",
             "leader", "expert", "specialist", "proficient", "knowledgeable"
         ]
-
         non_attractive_words = [
             "unemployed", "inexperienced", "unskilled", "unreliable", "incompetent",
             "lazy", "unmotivated", "careless", "unprofessional", "irresponsible",
@@ -63,12 +56,10 @@ class AttractivenessClassifier:
         ]
 
         X, y = [], []
-
         for word in attractive_words:
             if word in self.word_vectors:
                 X.append(self.word_vectors[word])
                 y.append(1)
-
         for word in non_attractive_words:
             if word in self.word_vectors:
                 X.append(self.word_vectors[word])
@@ -78,14 +69,12 @@ class AttractivenessClassifier:
         self.classifier.fit(X, y)
 
     def get_word_vector(self, word):
-        """Get the vector for a word if available"""
         try:
             return self.word_vectors[word.lower()]
         except KeyError:
             return None
 
     def classify_word(self, word):
-        """Predict whether a word is attractive or not"""
         vector = self.get_word_vector(word)
         if vector is not None:
             pred = self.classifier.predict([vector])[0]
@@ -94,7 +83,7 @@ class AttractivenessClassifier:
         return None, None
 
     def analyze_text(self, text):
-        """Analyze a block of text for linguistic attractiveness"""
+        """Analyze the given text and return structured results"""
         tokens = word_tokenize(text)
         pos_tags = nltk.pos_tag(tokens)
 
@@ -122,7 +111,6 @@ class AttractivenessClassifier:
             if pred is not None:
                 analyzed_count += 1
                 attractive_score_sum += prob
-
                 word_info = {"word": word, "pos": pos, "probability": float(prob)}
 
                 if pred == 1:
@@ -134,33 +122,40 @@ class AttractivenessClassifier:
 
         results["summary"]["total_analyzed"] = analyzed_count
         if analyzed_count > 0:
-            results["summary"]["attractiveness_score"] = (
-                attractive_score_sum / analyzed_count
-            )
+            results["summary"]["attractiveness_score"] = attractive_score_sum / analyzed_count
 
         return results
 
-    def save_analysis(self, analysis, folder="analyses"):
-        """Save each analysis result as a timestamped JSON file and open it in VS Code."""
-        os.makedirs(folder, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = os.path.join(folder, f"analysis_{timestamp}.json")
+    def save_to_text(self, analysis, filename="analysis_log.txt"):
+        """Append results to a text file and open it in VS Code"""
+        s = analysis["summary"]
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        with open(path, "w") as f:
-            json.dump(analysis, f, indent=4)
+        with open(filename, "a") as f:
+            f.write(f"\n=== Analysis ({timestamp}) ===\n")
+            f.write(f"Total analyzed: {s['total_analyzed']}\n")
+            f.write(f"Attractive words: {s['attractive_count']}\n")
+            f.write(f"Non-attractive words: {s['non_attractive_count']}\n")
+            f.write(f"Attractiveness score: {s['attractiveness_score']:.2f}\n\n")
 
-        print(f"💾 Saved analysis to {path}")
+            f.write("Attractive Words:\n")
+            for w in analysis["attractive_words"]:
+                f.write(f" - {w['word']} ({w['probability']:.2f})\n")
 
-        # 🚀 Automatically open the file in VS Code
-        try:
-            os.system(f"code {path}")
-            print("🧠 Opened analysis in VS Code")
-        except Exception as e:
-            print(f"⚠️ Could not open in VS Code: {e}")
+            f.write("\nNon-Attractive Words:\n")
+            for w in analysis["non_attractive_words"]:
+                f.write(f" - {w['word']} ({w['probability']:.2f})\n")
+
+            f.write("\n" + "=" * 50 + "\n")
+
+        print(f"💾 Appended analysis to {filename}")
+
+        # Open in VS Code automatically
+        os.system(f"code {filename}")
 
 
 def print_analysis(analysis):
-    """Pretty-print results to console"""
+    """Print nicely in the terminal"""
     print("\n----------------------------------------")
     print("✨ Attractive Words:")
     for w in analysis["attractive_words"]:
